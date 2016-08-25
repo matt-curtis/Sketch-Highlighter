@@ -37,9 +37,9 @@ var getLineRectsForTextLayer = function(textLayer, padding, factorInSelection){
 		//	Get bounding rect
 		//	Also ignore empty line ends, and hard line breaks
 
-		var rangeLength = endOfLineIndex - index;
+		var rangeLength = Math.min(endOfLineIndex, numberOfGlyphs) - index;
 
-		var lineText = stringValue.substring(index, endOfLineIndex), trimmedLineText = lineText.trimRight();
+		var lineText = stringValue.substr(index, rangeLength), trimmedLineText = lineText.trimRight();
 
 		rangeLength -= (lineText.length - trimmedLineText.length);
 
