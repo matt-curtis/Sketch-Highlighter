@@ -1,0 +1,24 @@
+{
+  "author" : "Matt Curtis",
+  "commands" : [
+    {
+      "script" : "script.cocoascript",
+      "name" : "Highlight Text",
+      "handlers" : {
+        "run" : "onRun"
+      },
+      "identifier" : "highlight-text"
+    }
+  ],
+  "menu" : {
+    "items" : [
+      "highlight-text"
+    ],
+    "title" : "Sketch Text Highlighter"
+  },
+  "identifier" : "com.matt-curtis.sketch-highlighter",
+  "version" : "1.0",
+  "description" : "Generates a shape layer from the selected text layer that create a highlighted effect.",
+  "authorEmail" : "",
+  "name" : "Sketch Text Higlighter"
+}
