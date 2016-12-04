@@ -1,3 +1,5 @@
+> ⚠️ **This plugin no longer works** as of Sketch 41. The Sktech APIs used by this plugin have been removed, and alternative methods have yet to present themselves.
+
 ![](README/header.png)
 
 --
