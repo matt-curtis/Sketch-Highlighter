@@ -4,8 +4,21 @@ var getLineRectsForTextLayer = function(textLayer, padding, factorInSelection){
 	var textLayerOrigin = textLayer.frame().origin();
 	var stringValue = textLayer.stringValue() + "";
 	
-	var layoutManager = textLayer.layoutManager();
-	var textContainer = textLayer.textContainer();
+	//	Create & size text container
+
+	var textContainer = textLayer.createTextContainer();
+
+	textContainer.size = textLayer.frame().size();
+	
+	//	Create layout manager & text storage
+
+	var layoutManager = textLayer.createLayoutManager();
+
+	layoutManager.textStorage = textLayer.createTextStorage();
+
+	layoutManager.addTextContainer(textContainer);
+
+	//	Prequisites
 
 	var lineRects = [];
 	var index = 0, numberOfGlyphs = layoutManager.numberOfGlyphs();
@@ -22,6 +35,8 @@ var getLineRectsForTextLayer = function(textLayer, padding, factorInSelection){
 			numberOfGlyphs = NSMaxRange(selectedRange);
 		}
 	}
+
+	//	Enumerate lines
 
 	while(index < numberOfGlyphs){
 		var endOfLineIndex;
@@ -154,6 +169,23 @@ var alert = function(message, title){
 	alert.runModal();
 };
 
+var SessionStorage = new function(){
+	var ns = "com.matt-curtis.sketch-highlighter", nsPrefix = ns + ".";
+	var dictionary = NSThread.mainThread().threadDictionary();
+
+	this.get = function(key){
+		key = nsPrefix + key;
+
+		return dictionary[key];
+	};
+
+	this.set = function(key, value){
+		key = nsPrefix + key;
+
+		dictionary[key] = value;
+	};
+};
+
 var promptUserForAndReturnPadding = function(){
 	var paddingString = prompt("Enter padding (i.e. top,right,bottom,left).\nUse negative values to create inset.", "0,0,0,0");
 
@@ -161,12 +193,21 @@ var promptUserForAndReturnPadding = function(){
 
 	var paddingValueStrings = paddingString.split(",");
 	
-	return {
+	var padding = {
 		top: parseFloat(paddingValueStrings[0]) || 0,
 		right: parseFloat(paddingValueStrings[1]) || 0,
 		bottom: parseFloat(paddingValueStrings[2]) || 0,
 		left: parseFloat(paddingValueStrings[3]) || 0
 	};
+
+	if(paddingValueStrings.length == 1){
+		padding.right = padding.bottom = padding.left = padding.top;
+	} else if(paddingValueStrings.length == 2){
+		padding.bottom = padding.top;
+		padding.left = padding.right;
+	}
+
+	return padding;
 };
 
 var onRun = function(_context){
