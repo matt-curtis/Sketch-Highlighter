@@ -17,7 +17,7 @@
     "title" : "Sketch Text Highlighter"
   },
   "identifier" : "com.matt-curtis.sketch-highlighter",
-  "version" : "1.1.1",
+  "version" : "1.1.2",
   "description" : "Generates a shape layer from the selected text layer that create a highlighted effect.",
   "authorEmail" : "",
   "name" : "Sketch Text Higlighter"

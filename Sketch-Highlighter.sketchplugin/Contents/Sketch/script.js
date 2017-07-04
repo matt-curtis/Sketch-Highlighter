@@ -6,18 +6,24 @@ var getLineRectsForTextLayer = function(textLayer, padding, factorInSelection){
 	
 	//	Create & size text container
 
-	var textContainer = textLayer.createTextContainer();
+	var textContainer = NSTextContainer.new();
 
-	textContainer.size = textLayer.frame().size();
+	textContainer.size = NSMakeSize(
+		textLayer.frame().size().width,
+		Number.MAX_VALUE
+	);
 	
 	//	Create layout manager & text storage
 
-	var layoutManager = textLayer.createLayoutManager();
+	var layoutManager = NSLayoutManager.new();
+	var textStorage = NSTextStorage.new();
+	
+	textStorage.setAttributedString(textLayer.attributedStringValue());
 
-	layoutManager.textStorage = textLayer.createTextStorage();
+	layoutManager.textStorage = textStorage;
 
 	layoutManager.addTextContainer(textContainer);
-
+	
 	//	Prequisites
 
 	var lineRects = [];
@@ -50,7 +56,7 @@ var getLineRectsForTextLayer = function(textLayer, padding, factorInSelection){
 		endOfLineIndex = NSMaxRange(lineRangePtr.value());
 
 		//	Get bounding rect
-		//	Also ignore empty line ends, and hard line breaks
+		//	Also ignore empty line ends and hard line breaks
 
 		var rangeLength = Math.min(endOfLineIndex, numberOfGlyphs) - index;
 
@@ -67,7 +73,7 @@ var getLineRectsForTextLayer = function(textLayer, padding, factorInSelection){
 
 		//	Offset from text layer...
 
-		lineRect.origin.x += textLayerOrigin.x;
+		lineRect.origin.x = textLayerOrigin.x;
 		lineRect.origin.y += textLayerOrigin.y;
 
 		//	Apply padding
