@@ -1,107 +1,132 @@
-var context;
+//	Requires
 
-var getLineRectsForTextLayer = function(textLayer, padding, factorInSelection){
-	var textLayerOrigin = textLayer.frame().origin();
-	var stringValue = textLayer.stringValue() + "";
-	
-	//	Create & size text container
+var Sketch = require("sketch");
+var { Document, Text, UI } = Sketch;
+//var SessionStorage = require("./SessionStorage");
 
-	var textContainer = NSTextContainer.new();
+//	Script Entry Point
 
-	textContainer.size = NSMakeSize(
-		textLayer.frame().size().width,
-		Number.MAX_VALUE
-	);
-	
-	//	Create layout manager & text storage
+var onRun = function(context){
+	var document = Sketch.fromNative(context.document);
 
-	var layoutManager = NSLayoutManager.new();
-	var textStorage = NSTextStorage.new();
-	
-	textStorage.setAttributedString(textLayer.attributedStringValue());
+	//	Grab and selected text layer(s)
 
-	layoutManager.textStorage = textStorage;
+	var foundTextLayers = false;
+	var desiredPadding;
 
-	layoutManager.addTextContainer(textContainer);
-	
-	//	Prequisites
+	for(let layer of document.selectedLayers.layers){
+		if(layer.type != Sketch.Types.Text) continue;
 
+		//	Found text - did we prompt user for padding?
+		//	If not, ask:
+
+		if(!foundTextLayers){
+			foundTextLayers = true;
+
+			desiredPadding = promptUserForAndReturnPadding();
+
+			if(!desiredPadding){
+				//	User cancelled, exit loop
+
+				break;
+			}
+		}
+
+		//	Insert lines behind text layer
+
+		var parentGroup = layer.parent;
+
+		var lineShapeGroup = createLineShapeGroupForTextLayer(layer, desiredPadding, true);
+
+		lineShapeGroup.parent = parentGroup;
+
+		//	Movement :( (layer.index is not writable!)
+
+		var targetIndex = layer.index - 1;
+		var formerIndex = -1; // fail-safe to avoid infinite loop(?)
+
+		while(lineShapeGroup.index != formerIndex && lineShapeGroup.index != targetIndex){
+			formerIndex = lineShapeGroup.index;
+			
+			lineShapeGroup.moveBackward();
+		}
+	}
+
+	//	Did we find any text layers?
+	//	If not, let the user know:
+
+	if(!foundTextLayers){
+		UI.alert(
+			"🤷‍♀ Select some text layers, please!",
+			"Hey I just met you\nand this is crazy\nbut no text's selected\nso select some maybe"
+		);
+	}
+};
+
+//	Helpers
+
+var getLineRectsForTextLayer = function(textLayer, padding, shouldFactorInSelection){
 	var lineRects = [];
-	var index = 0, numberOfGlyphs = layoutManager.numberOfGlyphs();
 
-	//	Factor in selection
+	var startingIndex = 0, maxIndex = Number.MAX_VALUE;
 
-	var currentHandler = context.document.currentHandler();
+	//	If this layer is in edit mode
+	//	limit the lines we gather to what's selected:
 
-	if(factorInSelection && currentHandler.textView){
-		var selectedRange = currentHandler.textView().selectedRange();
+	var editingTextView = context.document.currentHandler().textView;
 
+	if(shouldFactorInSelection && editingTextView){
+		var selectedRange = editingTextView.selectedRange();
+		
 		if(selectedRange.length > 0){
-			index = selectedRange.location;
-			numberOfGlyphs = NSMaxRange(selectedRange);
+			startingIndex = selectedRange.location;
+			maxIndex = NSMaxRange(selectedRange);
 		}
 	}
 
 	//	Enumerate lines
 
-	while(index < numberOfGlyphs){
-		var endOfLineIndex;
-
-		//	Get end of line index
-
-		var lineRangePtr = MOPointer.new();
-
-		[layoutManager lineFragmentUsedRectForGlyphAtIndex:index effectiveRange:lineRangePtr];
+	for(let fragment of textLayer.fragments){
+		const range = fragment.range;
 		
-		endOfLineIndex = NSMaxRange(lineRangePtr.value());
-
-		//	Get bounding rect
-		//	Also ignore empty line ends and hard line breaks
-
-		var rangeLength = Math.min(endOfLineIndex, numberOfGlyphs) - index;
-
-		var lineText = stringValue.substr(index, rangeLength), trimmedLineText = lineText.trimRight();
-
-		rangeLength -= (lineText.length - trimmedLineText.length);
-
-		var glyphRange = NSMakeRange(index, rangeLength);
-		var lineRect = [layoutManager boundingRectForGlyphRange:glyphRange inTextContainer:textContainer];
-
-		//	Update index
-
-		index = endOfLineIndex;
-
+		if(range.location < startingIndex) continue;
+		if(range.location >= maxIndex) break;
+		
+		const lineRect = new Sketch.Rectangle(
+			fragment.rect.x, fragment.rect.y, fragment.rect.width, fragment.rect.height
+		);
+		
 		//	Offset from text layer...
 
-		lineRect.origin.x = textLayerOrigin.x;
-		lineRect.origin.y += textLayerOrigin.y;
+		lineRect.x = textLayer.frame.x;
+		lineRect.y += textLayer.frame.y;
 
 		//	Apply padding
 
 		//	Top & bottom
 
-		lineRect.origin.y -= padding.top;
+		lineRect.y -= padding.top;
 
-		lineRect.size.height += padding.top;
+		lineRect.height += padding.top;
 
-		lineRect.size.height += padding.bottom;
+		lineRect.height += padding.bottom;
 
 		//	Left & right
 
-		lineRect.origin.x -= padding.left;
-		lineRect.size.width += padding.left;
+		lineRect.x -= padding.left;
+		lineRect.width += padding.left;
 
-		lineRect.size.width += padding.right;
+		lineRect.width += padding.right;
 
 		//	Store rect
 
 		lineRects.push(lineRect);
-	}
+	};
 
 	return lineRects;
 };
 
-var createLineShapeGroupForTextLayer = function(textLayer, padding, factorInSelection){
+function createLineShapeGroupForTextLayer(textLayer, padding, factorInSelection){
 	//	Create shape group
 
 	var shapeGroup = MSShapeGroup.new();
@@ -121,8 +146,8 @@ var createLineShapeGroupForTextLayer = function(textLayer, padding, factorInSele
 
 		//	Create shape layer
 
-		var bezierPath = NSBezierPath.bezierPathWithRect(lineRect);
-		var shapeLayer = [MSShapePathLayer shapeWithBezierPath:bezierPath];
+		var bezierPath = NSBezierPath.bezierPathWithRect(lineRect.asCGRect());
+		var shapeLayer = MSShapePathLayer.shapeWithBezierPath(bezierPath);
 
 		shapeLayer.booleanOperation = 0; // Union
 		shapeLayer.name = "Line " + (i + 1);
@@ -136,64 +161,13 @@ var createLineShapeGroupForTextLayer = function(textLayer, padding, factorInSele
 
 	shapeGroup.resizeToFitChildrenWithOption(1);
 
-	return shapeGroup;
+	return Sketch.fromNative(shapeGroup);
 };
 
-var prompt = function(promptTitle, defaultValue){
-	if(!defaultValue) defaultValue = "";
-
-	var alert = [NSAlert
-		alertWithMessageText:promptTitle
-		defaultButton:"OK"
-		alternateButton:"Cancel"
-		otherButton:nil
-		informativeTextWithFormat:""];
-
-	var input = [[NSTextField alloc] initWithFrame:NSMakeRect(0, 0, 200, 24)];
-
-	[input setStringValue:defaultValue];
-	[alert setAccessoryView:input];
-	[input selectText:nil];
-
-	var pressedButtonIndex = [alert runModal];
-
-	if(pressedButtonIndex == NSAlertDefaultReturn){
-		[input validateEditing];
-
-		return [input stringValue]+"";
-	} else {
-		return null;
-	}
-};
-
-var alert = function(message, title){
-	var alert = NSAlert.new();
-	
-	alert.messageText = title || "Alert";
-	alert.informativeText = message+"";
-	
-	alert.runModal();
-};
-
-var SessionStorage = new function(){
-	var ns = "com.matt-curtis.sketch-highlighter", nsPrefix = ns + ".";
-	var dictionary = NSThread.mainThread().threadDictionary();
-
-	this.get = function(key){
-		key = nsPrefix + key;
-
-		return dictionary[key];
-	};
-
-	this.set = function(key, value){
-		key = nsPrefix + key;
-
-		dictionary[key] = value;
-	};
-};
-
-var promptUserForAndReturnPadding = function(){
-	var paddingString = prompt("Enter padding (i.e. top,right,bottom,left).\nUse negative values to create inset.", "0,0,0,0");
+function promptUserForAndReturnPadding(){
+	var paddingString = UI.getStringFromUser(
+		"Enter padding (i.e. top,right,bottom,left).\nUse negative values to create inset.", "0,0,0,0"
+	);
 
 	if(!paddingString) return null;
 
@@ -214,46 +188,4 @@ var promptUserForAndReturnPadding = function(){
 	}
 
 	return padding;
-};
-
-var onRun = function(_context){
-	context = _context;
-
-	//	Grab and confirm selected text layer(s)
-
-	var selectedLayers = context.selection;
-	var foundTextLayers = false;
-	var padding;
-
-	for(var i = 0; i < selectedLayers.length; i++){
-		var layer = selectedLayers[i];
-
-		if(layer.class() != MSTextLayer.class()) continue;
-
-		//	Found text layer - prompt user for padding
-
-		if(!foundTextLayers){
-			foundTextLayers = true;
-
-			padding = promptUserForAndReturnPadding();
-
-			if(!padding) break;
-		}
-
-		//	Insert lines behind text layer
-
-		var parentGroup = layer.parentGroup();
-
-		var lineShapeGroup = createLineShapeGroupForTextLayer(layer, padding, true);
-
-		var destinationIndex = parentGroup.layers().indexOfObject(layer);
-		
-		[parentGroup insertLayer:lineShapeGroup atIndex:destinationIndex];
-	}
-
-	if(!foundTextLayers){
-		//	Hey - no text layers found.
-
-		alert("No text layers in selection.");
-	}
 };
